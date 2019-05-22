@@ -6,18 +6,22 @@ import io.mockk.junit5.MockKExtension
 import io.mockk.verify
 import io.pleo.antaeus.core.TestUtils.Companion.givenCustomer
 import io.pleo.antaeus.core.TestUtils.Companion.givenInvoice
+import io.pleo.antaeus.core.exceptions.CurrencyMismatchException
 import io.pleo.antaeus.core.exceptions.CustomerNotFoundException
 import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.core.services.CurrencyConversionService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
 import io.pleo.antaeus.models.CustomerStatus
+import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.quartz.JobDetail
 import org.quartz.JobExecutionContext
+import org.quartz.JobExecutionException
 import org.quartz.Scheduler
 import org.quartz.SchedulerContext
 import org.quartz.impl.JobDetailImpl
@@ -103,5 +107,26 @@ internal class BillingJobTest {
         verify { paymentProvider.charge(givenInvoice) }
         verify { customerService.deactivateCustomer(givenInvoice.customerId) }
         verify { scheduler.deleteJob(jobdetails.key) }
+    }
+
+    @Test
+    fun `should convert currency on CurrencyMismatchException`() {
+        val cancelledInvoice = givenInvoice.copy(status = InvoiceStatus.CANCELLED)
+        val createdInvoice = Invoice(2, givenCustomer.id, givenInvoice.amount, InvoiceStatus.PENDING)
+        val fromCurrenvy = givenInvoice.amount.currency
+        val toCurrency = givenCustomer.currency
+        val amount = givenInvoice.amount.value
+
+        every { paymentProvider.charge(givenInvoice) } throws CurrencyMismatchException(givenInvoice.id, givenCustomer.id)
+        every { customerService.fetch(givenCustomer.id) } returns givenCustomer
+        every { invoiceService.update(cancelledInvoice) } returns cancelledInvoice
+        every { invoiceService.create(givenInvoice.amount, givenCustomer) } returns createdInvoice
+        every { currencyConversionService.convert(fromCurrenvy, toCurrency, amount) } returns amount
+
+        assertThrows<JobExecutionException> { BillingJob().execute(executionContext) }
+
+        verify { paymentProvider.charge(givenInvoice) }
+        verify { invoiceService.create(givenInvoice.amount, givenCustomer) }
+        verify { currencyConversionService.convert(fromCurrenvy, toCurrency, amount) }
     }
 }
