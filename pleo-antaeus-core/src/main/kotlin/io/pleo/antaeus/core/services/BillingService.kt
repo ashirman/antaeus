@@ -13,7 +13,7 @@ class BillingService(paymentProvider: PaymentProvider,
                      invoiceService: InvoiceService,
                      customerService: CustomerService,
                      currencyConversionService: CurrencyConversionService,
-                     private val scheduler: Scheduler = StdSchedulerFactory().scheduler,
+                     val scheduler: Scheduler = StdSchedulerFactory().scheduler,
                      numOfRetries: Int = 5) {
 
     init {
