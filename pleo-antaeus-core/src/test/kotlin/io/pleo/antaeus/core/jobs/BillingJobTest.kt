@@ -4,11 +4,13 @@ import io.mockk.every
 import io.mockk.impl.annotations.MockK
 import io.mockk.junit5.MockKExtension
 import io.mockk.verify
+import io.pleo.antaeus.core.TestUtils.Companion.givenCustomer
 import io.pleo.antaeus.core.TestUtils.Companion.givenInvoice
 import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.core.services.CurrencyConversionService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
+import io.pleo.antaeus.models.CustomerStatus
 import io.pleo.antaeus.models.InvoiceStatus
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -57,12 +59,15 @@ internal class BillingJobTest {
         every { executionContext.scheduler } returns scheduler
         every { executionContext.jobDetail } returns jobdetails
         every { scheduler.context } returns schedulerContext
+
+        every { invoiceService.fetch(1) } returns givenInvoice
+
     }
 
     @Test
     fun `happy path test`() {
         val paidInvoice = givenInvoice.copy(status = InvoiceStatus.PAID)
-        every { invoiceService.fetch(1) } returns givenInvoice
+
         every { paymentProvider.charge(givenInvoice) } returns true
         every { invoiceService.update(paidInvoice) } returns paidInvoice
 
@@ -70,5 +75,16 @@ internal class BillingJobTest {
 
         verify { paymentProvider.charge(givenInvoice) }
         verify { invoiceService.update(paidInvoice) }
+    }
+
+    @Test
+    fun `should deactivate customer if balance is not enough`() {
+        every { paymentProvider.charge(givenInvoice) } returns false
+        every { customerService.deactivateCustomer(givenInvoice.customerId) } returns givenCustomer.copy(status = CustomerStatus.INACTIVE)
+
+        BillingJob().execute(executionContext)
+
+        verify { paymentProvider.charge(givenInvoice) }
+        verify { customerService.deactivateCustomer(givenInvoice.customerId) }
     }
 }

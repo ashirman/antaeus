@@ -2,6 +2,8 @@ package io.pleo.antaeus.core
 
 import io.pleo.antaeus.core.jobs.BillingJob
 import io.pleo.antaeus.models.Currency
+import io.pleo.antaeus.models.Customer
+import io.pleo.antaeus.models.CustomerStatus
 import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
 import io.pleo.antaeus.models.Money
@@ -16,6 +18,10 @@ class TestUtils {
                 2,
                 Money(BigDecimal.valueOf(123L), currency = Currency.USD),
                 InvoiceStatus.PENDING)
+
+        val givenCustomer = Customer(1,
+                Currency.USD,
+                CustomerStatus.ACTIVE)
 
         val givenTrigger = TriggerBuilder
                 .newTrigger()
