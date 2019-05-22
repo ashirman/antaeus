@@ -26,12 +26,13 @@ internal class BillingJob : Job {
         private val logger = LoggerFactory.getLogger(javaClass.enclosingClass)
     }
 
-    override fun execute(context: JobExecutionContext) {
-        val paymentProvider = context.scheduler.context[PAYMENT_PROVIDER] as PaymentProvider
-        val invoiceService = context.scheduler.context[PAYMENT_PROVIDER] as InvoiceService
-        val customerService = context.scheduler.context[CUSTOMER_SERVICE] as CustomerService
+    override fun execute(executionContext: JobExecutionContext) {
+        val context = executionContext.scheduler.context
+        val paymentProvider = context[PAYMENT_PROVIDER] as PaymentProvider
+        val invoiceService = context[INVOICE_SERVICE] as InvoiceService
+        val customerService = context[CUSTOMER_SERVICE] as CustomerService
 
-        val invoiceId = context.jobDetail.jobDataMap.getIntValue(INVOICE_ID)
+        val invoiceId = executionContext.jobDetail.jobDataMap.getIntValue(INVOICE_ID)
 
         var invoice: Invoice? = null
         try {
@@ -52,7 +53,7 @@ internal class BillingJob : Job {
             }
         } catch (cnfe: CustomerNotFoundException) {
             // when no customer has the given id.
-            deleteCurrentJobFromScheduling(context)
+            deleteCurrentJobFromScheduling(executionContext)
 
             invoice?.let {
                 logger.info("customer ${it.customerId} is not available on")
@@ -67,8 +68,8 @@ internal class BillingJob : Job {
             // retry payment after some time, 3rd part payment provider may not be available.
             //TODO add numOfRepeats support. retry payments after a while
         } catch (infe: InvoiceNotFoundException) {
-            logger.info("invoice ${invoice?.id} can not be found. associated job ${context.jobDetail.key} will be deleted")
-            deleteCurrentJobFromScheduling(context)
+            logger.info("invoice ${invoice?.id} can not be found. associated job ${executionContext.jobDetail.key} will be deleted")
+            deleteCurrentJobFromScheduling(executionContext)
         }
     }
 
