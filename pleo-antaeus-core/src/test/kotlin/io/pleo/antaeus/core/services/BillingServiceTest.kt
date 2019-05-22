@@ -4,6 +4,9 @@ import io.mockk.every
 import io.mockk.impl.annotations.MockK
 import io.mockk.junit5.MockKExtension
 import io.mockk.verify
+import io.pleo.antaeus.core.TestUtils.Companion.givenInvoice
+import io.pleo.antaeus.core.TestUtils.Companion.givenJobDetail
+import io.pleo.antaeus.core.TestUtils.Companion.givenTrigger
 import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.core.jobs.BillingJob
 import io.pleo.antaeus.models.Currency
@@ -32,6 +35,9 @@ internal class BillingServiceTest {
     @MockK
     lateinit var customerService: CustomerService
 
+    @MockK
+    lateinit var currencyConversionService: CurrencyConversionService
+
     @MockK(relaxed = true)
     lateinit var scheduler: Scheduler
 
@@ -40,7 +46,7 @@ internal class BillingServiceTest {
         every { scheduler.isStarted } returns false
         every { scheduler.context } returns SchedulerContext()
 
-        BillingService(paymentProvider, invoiceService, customerService, scheduler)
+        BillingService(paymentProvider, invoiceService, customerService, currencyConversionService, scheduler)
         verify(exactly = 1) { scheduler.start() }
     }
 
@@ -49,7 +55,7 @@ internal class BillingServiceTest {
         every { scheduler.isStarted } returns true
         every { scheduler.context } returns SchedulerContext()
 
-        BillingService(paymentProvider, invoiceService, customerService, scheduler)
+        BillingService(paymentProvider, invoiceService, customerService, currencyConversionService, scheduler)
         verify(exactly = 0) { scheduler.start() }
     }
 
@@ -59,11 +65,12 @@ internal class BillingServiceTest {
         every { scheduler.isStarted } returns false
         every { scheduler.context } returns schedulerContext
 
-        BillingService(paymentProvider, invoiceService, customerService, scheduler)
+        BillingService(paymentProvider, invoiceService, customerService, currencyConversionService, scheduler)
 
         assertTrue(scheduler.context[BillingJob.PAYMENT_PROVIDER] == paymentProvider)
         assertTrue(scheduler.context[BillingJob.INVOICE_SERVICE] == invoiceService)
         assertTrue(scheduler.context[BillingJob.CUSTOMER_SERVICE] == customerService)
+        assertTrue(scheduler.context[BillingJob.CURRENCY_CONVERSION_SERVICE] == currencyConversionService)
     }
 
     @Test
@@ -71,7 +78,7 @@ internal class BillingServiceTest {
         every { scheduler.isStarted } returns false
         every { scheduler.context } returns SchedulerContext()
 
-        BillingService(paymentProvider, invoiceService, customerService, scheduler)
+        BillingService(paymentProvider, invoiceService, customerService, currencyConversionService, scheduler)
                 .scheduleInvoicePayment(givenInvoice, "0 0 12 1 1/1 ? *")
 
         verify(exactly = 1) { scheduler.scheduleJob(givenJobDetail, givenTrigger) }
@@ -83,26 +90,8 @@ internal class BillingServiceTest {
         every { scheduler.context } returns SchedulerContext()
 
         assertThrows<RuntimeException> {
-            BillingService(paymentProvider, invoiceService, customerService, scheduler)
+            BillingService(paymentProvider, invoiceService, customerService, currencyConversionService, scheduler)
                     .scheduleInvoicePayment(givenInvoice, "bla bla bla")
         }
     }
-
-    private val givenInvoice = Invoice(1,
-            2,
-            Money(BigDecimal.valueOf(123L), currency = Currency.USD),
-            InvoiceStatus.PENDING)
-
-    private val givenTrigger = TriggerBuilder
-            .newTrigger()
-            .withIdentity("trigger_invoice_1")
-            .withSchedule(CronScheduleBuilder.cronSchedule("0 0 12 1 1/1 ? *"))
-            .build()
-
-    private val givenJobDetail = JobBuilder
-            .newJob()
-            .ofType(BillingJob::class.java)
-            .withIdentity("job_invoice_1")
-            .usingJobData(BillingJob.INVOICE_ID, 1)
-            .build()
 }

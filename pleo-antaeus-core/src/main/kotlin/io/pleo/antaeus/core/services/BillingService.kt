@@ -13,7 +13,8 @@ class BillingService(paymentProvider: PaymentProvider,
                      invoiceService: InvoiceService,
                      customerService: CustomerService,
                      currencyConversionService: CurrencyConversionService,
-                     private val scheduler: Scheduler = StdSchedulerFactory().scheduler) {
+                     private val scheduler: Scheduler = StdSchedulerFactory().scheduler,
+                     numOfRetries: Int = 5) {
 
     init {
         //using scheduler context is the simplest way to pass instance variables (service instances) to further job instances without using DI frameworks
@@ -23,6 +24,7 @@ class BillingService(paymentProvider: PaymentProvider,
         scheduler.context[BillingJob.INVOICE_SERVICE] = invoiceService
         scheduler.context[BillingJob.CUSTOMER_SERVICE] = customerService
         scheduler.context[BillingJob.CURRENCY_CONVERSION_SERVICE] = currencyConversionService
+        scheduler.context[BillingJob.RETRY] = numOfRetries
 
         if (!scheduler.isStarted) scheduler.start()
     }
