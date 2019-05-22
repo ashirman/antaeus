@@ -15,7 +15,7 @@ import java.math.BigDecimal
 class TestUtils {
     companion object {
         val givenInvoice = Invoice(1,
-                2,
+                1,
                 Money(BigDecimal.valueOf(123L), currency = Currency.USD),
                 InvoiceStatus.PENDING)
 
