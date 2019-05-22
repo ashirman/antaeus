@@ -8,6 +8,7 @@ import io.pleo.antaeus.core.TestUtils.Companion.givenCustomer
 import io.pleo.antaeus.core.TestUtils.Companion.givenInvoice
 import io.pleo.antaeus.core.exceptions.CurrencyMismatchException
 import io.pleo.antaeus.core.exceptions.CustomerNotFoundException
+import io.pleo.antaeus.core.exceptions.NetworkException
 import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.core.services.CurrencyConversionService
 import io.pleo.antaeus.core.services.CustomerService
@@ -15,6 +16,7 @@ import io.pleo.antaeus.core.services.InvoiceService
 import io.pleo.antaeus.models.CustomerStatus
 import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -61,7 +63,7 @@ internal class BillingJobTest {
             this[BillingJob.RETRY] = 1
         }
 
-        jobdetails = JobDetailImpl().apply {
+        jobdetails = JobDetailImpl("name", "group", BillingJob::class.java).apply {
             jobDataMap[BillingJob.RETRY] = 1
             jobDataMap[BillingJob.INVOICE_ID] = 1
         }
@@ -124,9 +126,33 @@ internal class BillingJobTest {
         every { currencyConversionService.convert(fromCurrenvy, toCurrency, amount) } returns amount
 
         assertThrows<JobExecutionException> { BillingJob().execute(executionContext) }
+        assertTrue(jobdetails.jobDataMap[BillingJob.INVOICE_ID] == createdInvoice.id)//must have value associated with re-created invoice in job context map
 
         verify { paymentProvider.charge(givenInvoice) }
         verify { invoiceService.create(givenInvoice.amount, givenCustomer) }
         verify { currencyConversionService.convert(fromCurrenvy, toCurrency, amount) }
+    }
+
+    @Test
+    fun `should resubmit job on network error`() {
+        every { paymentProvider.charge(givenInvoice) } throws NetworkException()
+        every { customerService.deactivateCustomer(givenInvoice.customerId) } returns givenCustomer.copy(status = CustomerStatus.INACTIVE)
+
+        BillingJob().execute(executionContext)
+
+        verify { paymentProvider.charge(givenInvoice) }
+        verify { scheduler.scheduleJob(any()) }// don't check the details of generated trigger in unit tests for now
+        assertTrue(jobdetails.jobDataMap[BillingJob.RETRY] == 0)//the value has been decresed by 1
+    }
+
+    @Test
+    fun `should raise exception aftfer given attempts to handle NetworkException`() {
+        jobdetails.jobDataMap[BillingJob.RETRY] = 0 // as if we already spent all attempts to retry
+        every { paymentProvider.charge(givenInvoice) } throws NetworkException()
+        every { customerService.deactivateCustomer(givenInvoice.customerId) } returns givenCustomer.copy(status = CustomerStatus.INACTIVE)
+
+        assertThrows<JobExecutionException> { BillingJob().execute(executionContext) }
+
+        verify { paymentProvider.charge(givenInvoice) }
     }
 }
