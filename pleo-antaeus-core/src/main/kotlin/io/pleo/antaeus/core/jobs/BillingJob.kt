@@ -8,6 +8,7 @@ import io.pleo.antaeus.core.external.PaymentProvider
 import io.pleo.antaeus.core.services.CurrencyConversionService
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
+import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
 import io.pleo.antaeus.models.Money
 import org.quartz.Job
@@ -41,28 +42,13 @@ internal class BillingJob : Job {
         val conversionService = context[CURRENCY_CONVERSION_SERVICE] as CurrencyConversionService
 
         try {
-            invoiceService.fetch(executionContext.jobDetail.jobDataMap.getIntValue(INVOICE_ID))
-                    .apply {
-                        // need to check the invoice status right before provider's charge() call.
-                        // the job could be planned long time ago and the invoice can be processed/cancelled already somehow
-                        // (eg alternate way of payments, via support resolution, etc).
-                        if (status == InvoiceStatus.PENDING) {
-                            if (paymentProvider.charge(this)) {
-                                invoiceService.update(copy(status = InvoiceStatus.PAID))
-                            } else {
-                                // customer has not enough money to be able to pay the invoice.
-                                //TODO process it somehow
-                            }
-                        } else {
-                            logger.info("invoice $id processing has been skipped due to $status status")
-                        }
-                    }
-
+            val invoice = invoiceService.fetch(executionContext.jobDetail.jobDataMap.getIntValue(INVOICE_ID))
+            chargeInvoice(invoice, paymentProvider, invoiceService, customerService)
         } catch (cnfe: CustomerNotFoundException) {
             logger.info("customer ${cnfe.id} not found", cnfe)
             handleCustomerNotFound(executionContext, customerService, cnfe)
         } catch (cme: CurrencyMismatchException) {
-            logger.info("failed to charge invoice due to currency mismatch", cme)
+            logger.info("failed to charge invoice due to currency mismatch. invoice ${cme.invoiceId} customer ${cme.customerId}", cme)
             handleCurrencyMismatch(cme, executionContext.jobDetail.jobDataMap, customerService, invoiceService, conversionService)
         } catch (ne: NetworkException) {
             logger.info("failed to charge invoice due to network error ")
@@ -70,6 +56,21 @@ internal class BillingJob : Job {
         } catch (infe: InvoiceNotFoundException) {
             logger.info("invoice ${infe.id} can not be found. associated job ${executionContext.jobDetail.key} will be deleted")
             deleteCurrentJobFromScheduling(executionContext)
+        }
+    }
+
+    private fun chargeInvoice(invoice: Invoice, paymentProvider: PaymentProvider, invoiceService: InvoiceService, customerService: CustomerService) {
+        // need to check the invoice status right before provider's charge() call.
+        // the job could be planned long time ago and the invoice can be processed/cancelled already somehow
+        // (eg alternate way of payments, via support resolution, etc).
+        if (invoice.status == InvoiceStatus.PENDING) {
+            if (paymentProvider.charge(invoice)) {
+                invoiceService.update(invoice.copy(status = InvoiceStatus.PAID))
+            } else {
+                customerService.deactivateCustomer(invoice.customerId)
+            }
+        } else {
+            logger.info("invoice ${invoice.id} processing has been skipped due to ${invoice.status} status")
         }
     }
 
@@ -90,8 +91,7 @@ internal class BillingJob : Job {
         val customer = customerService.fetch(cme.customerId)
         invoiceService.update(originalInvoice.copy(status = InvoiceStatus.CANCELLED))
         val convertedAmount = convertionService.convert(originalInvoice.amount.currency, customer.currency, originalInvoice.amount.value)
-        val convertedInvoice = invoiceService.create(Money(convertedAmount, customer.currency), customer)
-        jdm.put(INVOICE_ID, convertedInvoice.id)
+        jdm[INVOICE_ID] = invoiceService.create(Money(convertedAmount, customer.currency), customer).id
         throw JobExecutionException(cme).apply { setRefireImmediately(true) }
     }
 
