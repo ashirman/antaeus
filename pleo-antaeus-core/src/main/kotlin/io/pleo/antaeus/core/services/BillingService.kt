@@ -12,6 +12,7 @@ import org.quartz.impl.StdSchedulerFactory
 class BillingService(paymentProvider: PaymentProvider,
                      invoiceService: InvoiceService,
                      customerService: CustomerService,
+                     currencyConversionService: CurrencyConversionService,
                      private val scheduler: Scheduler = StdSchedulerFactory().scheduler) {
 
     init {
@@ -21,6 +22,7 @@ class BillingService(paymentProvider: PaymentProvider,
         scheduler.context[BillingJob.PAYMENT_PROVIDER] = paymentProvider
         scheduler.context[BillingJob.INVOICE_SERVICE] = invoiceService
         scheduler.context[BillingJob.CUSTOMER_SERVICE] = customerService
+        scheduler.context[BillingJob.CURRENCY_CONVERSION_SERVICE] = currencyConversionService
 
         if (!scheduler.isStarted) scheduler.start()
     }
