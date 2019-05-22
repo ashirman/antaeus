@@ -23,7 +23,6 @@ import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import setupInitialData
-import sun.print.CUPSPrinter
 import java.sql.Connection
 
 fun main() {
