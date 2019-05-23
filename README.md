@@ -36,9 +36,9 @@ What solution does NOT contain (only because I had limited time for implementati
    - transactions between DB and Quartz. Quartz supports integration with transaction managers (mostly using Spring framework) but I had no time to integrate it.
    
    - single point of params configuration. so far in few places params such as number of retry attempts passed in constructor 
-  and in few places values are hardcoded. so, it's pretty typical task and it's possible to create a kind of configuration service/environment then 
-  configure it in env variables, files, etc to be able to tune it.
-    - APIs for invoice payment history tracking. eg after successful/unsuccessful transaction we should record it to DB so it would be possible 
+  and in few places values are hardcoded. so, it's pretty typical task and it's possible to create a kind of configuration service/environment then configure it in env variables, files, etc to be able to tune it.
+  
+   - APIs for invoice payment history tracking. eg after successful/unsuccessful transaction we should record it to DB so it would be possible 
     to know the history of invoice payment (eg customer can request it, support may need it for investigation etc)
     
 Totally I spent around 2 days to implement test and describe it. I will be happy to discuss selected approaches in details.
