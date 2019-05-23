@@ -1,4 +1,4 @@
-#Alexey Shirmanov 
+# Alexey Shirmanov 
 
 [LinkedIn](https://www.linkedin.com/in/alexey-shirmanov/) | [CV](http://ashirman.github.io) | ashirman8@gmail.com
 
