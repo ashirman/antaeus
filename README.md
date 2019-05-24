@@ -13,8 +13,8 @@ did not work properly from IDEA. Fixed it by setting 'Service directory path' ID
     The advantage is that that's relatively simple solution and could be implemented really fast. There are some disadvantages of 
     this approach as well: for real-world amount of data the job execution will take long time (depending on payment provider performance and number of invoices).
     plus we need to read the entire collection of invoices from DB and lock the DB table. Need to note that this approach is not well scalable (how to split these invoices 
-    between let say 10 nodes?) and require some tricky login for error handling. 
-    - idea 2: use scheduler and schedule invoice payments individually. I selected Quartz as a job scheduler because it is a widely known 
+    between let say 10 nodes?) and require some tricky logic for error handling. 
+    - idea 2: use a scheduler and schedule invoice payments individually. I selected Quartz as a job scheduler because it is a widely known 
     open-sourced solution with pretty active community. So in case of issues it's possible to read forums, stackowerflow, etc. It's is mentioned that 
     Quartz works well as for small tools as well for large enterprise e-commerce solutions thanks to clustering support. comparing to previous idea this 
     approach can be scaled pretty well as well as more reliable. Also we have some place for tuning and extensions for example 'spread' invoices so
